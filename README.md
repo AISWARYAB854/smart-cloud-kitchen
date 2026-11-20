@@ -95,3 +95,22 @@ Food imagery uses external illustrative Unsplash URLs and fonts use Google Fonts
 ## Deployment preparation
 
 Build with `npm.cmd run build`; serve `frontend/dist` through an HTTPS static host/reverse proxy with SPA fallback to `index.html`, including `/admin/*`. Proxy `/api` and `/uploads` to a separately managed FastAPI process. Persist and back up `backend/uploads` with the database; uploaded photos are public menu assets, never private bills. Use managed PostgreSQL or a secured dedicated database role, strong environment secrets, exact CORS origins, automated backups, and monitoring. Run Alembic migrations once per release before starting workers. Never deploy `.env`, `.local`, `.venv`, or public development servers. Production must finish the hardening and operations work listed in the architecture document before accepting real orders. Sites hosting is not used because this project targets the requested local Python/PostgreSQL stack.
+
+### Render backend settings
+
+The Python application is `backend/app/main.py` and exposes a FastAPI (ASGI) application named `app`. In the existing Render web service, use these settings together:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `backend` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Health Check Path | `/api/health` |
+
+Do not use `gunicorn app:app`: the package is inside `backend`, and FastAPI requires an ASGI server. If you keep Root Directory empty instead, install from the root requirements file and use `python -m uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`; run database commands from `backend`.
+
+Set environment variables `DATABASE_URL` (use `postgresql+psycopg://USER:PASSWORD@HOST/DATABASE` for this SQLAlchemy driver), `JWT_SECRET` (a random secret of at least 32 characters), and `CORS_ORIGINS` (a JSON array containing the HTTPS frontend origin). Do not use the local database URL in production.
+
+Before serving orders, run `python -m alembic upgrade head` once per release from `backend`, and run `python -m app.seed` for initial setup. The health check requires a reachable database. Keep uploaded photos on persistent storage at `backend/uploads`. Deploy the React frontend separately using the deployment preparation guidance above.
+
+Push these changes to the connected repository, save the Render settings, then redeploy. Reference: https://render.com/docs/deploy-fastapi
